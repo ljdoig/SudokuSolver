@@ -1,0 +1,8 @@
+lib: [
+  "_build/install/default/lib/sudoku/META"
+  "_build/install/default/lib/sudoku/dune-package"
+  "_build/install/default/lib/sudoku/opam"
+]
+bin: [
+  "_build/install/default/bin/sudoku"
+]
