@@ -1,5 +1,5 @@
 let () =
-  match Sudoku.read "test.txt" with
+  match Sudoku.read "sudokus/example.txt" with
   | None -> print_endline "illegal sudoku"
   | Some sudoku -> Sudoku.print sudoku
   (* match Sudoku.solve sudoku with

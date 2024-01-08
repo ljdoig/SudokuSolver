@@ -64,37 +64,135 @@ let potential_assignment sudoku row col num =
   row_nums :: col_nums :: Array.to_list box
     |> List.for_all (fun nums -> not (Array.exists same_num nums)) *)
 
-type posibilities = int list array array
+type possibilities = int list array array
 
-let possibilities_to_string posibilities =
+let box_corner_indices = Array.init 9 ~f:(fun i -> i / 3 * 3, i mod 3 * 3)
+
+let () =
+  Array.to_list box_corner_indices
+    |> List.map ~f:(fun (i, j) -> sprintf "(%d, %d)" i j)
+    |> String.concat ~sep:", "
+    |> print_endline
+
+let box_indices (row, col) =
+  let box_row = row / 3 * 3 and box_col = col / 3 * 3 in
+  Array.init 9 ~f:(fun i -> box_row + i / 3, box_col + i mod 3)
+
+let possibilities_to_string possibilities =
   let s = Buffer.create 256 in
   let print_horizontal_divider buffer =
-    Buffer.add_string buffer "+-------+-------+-------+\n"
+    for _ = 0 to 2 do
+      Buffer.add_char buffer '+';
+      Buffer.add_string buffer (String.make (9 * 3 + 2) '-');
+    done;
+    Buffer.add_string buffer "+\n";
   in
   Array.iteri
-    ~f:(fun i row ->
+    ~f:(fun i row_possibilities ->
       if i mod 3 = 0 then print_horizontal_divider s;
       Array.iteri
         ~f:(fun j cell_possibilities ->
-          if j mod 3 = 0 then Buffer.add_string s "| ";
-          cell_possibilities
-            |> List.map ~f:Int.to_string
-            |> String.concat ~sep:""
+          Buffer.add_string s (if j mod 3 = 0 then "|" else " ");
+          let possible = Array.init 9 ~f:(Fn.const ".") in
+          List.iter cell_possibilities ~f:(
+            fun n -> possible.(n - 1) <- Int.to_string n
+          );
+          possible
+            |> String.concat_array ~sep:""
             |> Buffer.add_string s;
         )
-        row;
+        row_possibilities;
       Buffer.add_string s "|\n")
-    posibilities;
-  print_horizontal_divider s;
-  Buffer.contents s
+    possibilities;
+  print_horizontal_divider s; Buffer.contents s
 
-let initial_posibilities (sudoku : t) : posibilities =
+let initial_possibilities (sudoku : t) : possibilities =
   let possibilites_from_spec = (function
     | None -> List.init 9 ~f:(fun x -> x + 1)
     | Some x -> [x])
   in
   Array.map ~f:(Array.map ~f:possibilites_from_spec) sudoku
 
+let constrain (possibilities : possibilities) progress : unit =
+  let remove_possibility row col value =
+    if List.mem possibilities.(row).(col) ~equal:Int.equal value then (
+      possibilities.(row).(col) <- List.filter possibilities.(row).(col) ~f:(
+        fun x -> x <> value
+      );
+      Printf.printf "(%d, %d) can't be %d\n" row col value;
+      progress := true
+    )
+  in
+  let constrain_row_and_col row col value =
+    for i = 0 to 8 do
+      if i <> col then
+        remove_possibility row i value;
+      if i <> row then
+        remove_possibility i col value;
+      done;
+  and constrain_box row col value =
+    Array.iter (box_indices (row, col)) ~f:(fun (row', col') ->
+      if row' <> row || col' <> col then
+        remove_possibility row' col' value
+    )
+  in
+  (for row = 0 to 8 do
+    for col = 0 to 8 do
+      match possibilities.(row).(col) with
+      | [value] ->
+        constrain_row_and_col row col value;
+        constrain_box row col value;
+      | _ -> ()
+      done;
+    done;)
+
+let assign (possibilities : possibilities) progress =
+  for value = 1 to 9 do
+    let contains_value list = List.mem list ~equal:Int.equal value in
+    let trim possibilities_set coords =
+      if Array.count possibilities_set ~f:contains_value = 1 then
+        Array.iter2_exn possibilities_set coords ~f:(fun cell_poss (row, col) ->
+          if contains_value cell_poss && List.length cell_poss > 1
+          then (
+            possibilities.(row).(col) <- [value];
+            progress := true;
+            Printf.printf
+              "(%d, %d) must be %d, previous possibilities: %s\n"
+              row col value (List.to_string cell_poss ~f:Int.to_string)
+          ))
+    in
+    for i = 0 to 8 do
+      let row_possibilities = possibilities.(i) in
+      let col_possibilities = Array.map ~f:(fun r -> r.(i)) possibilities in
+      trim row_possibilities (Array.init 9 ~f:(fun c -> (i, c)));
+      trim col_possibilities (Array.init 9 ~f:(fun r -> (r, i)));
+      let current_box_indices = box_indices box_corner_indices.(i) in
+      let box_possibilities =
+        Array.map ~f:(fun (r, c) -> possibilities.(r).(c)) current_box_indices
+      in
+      trim box_possibilities current_box_indices
+      done
+  done
+
+let solve possibilities : unit =
+  let constrain_progress = ref true in
+  let assign_progress = ref true in
+  while !constrain_progress || !assign_progress do
+    constrain_progress := false;
+    constrain possibilities constrain_progress;
+    if !constrain_progress then
+      possibilities
+        |> possibilities_to_string
+        |> print_endline;
+    assign_progress := false;
+    assign possibilities assign_progress;
+    if !assign_progress then
+      possibilities
+        |> possibilities_to_string
+        |> print_endline;
+  done
+
 let print t =
   t |> to_string |> print_endline;
-  t |> initial_posibilities |> possibilities_to_string |> print_endline
+  t |> initial_possibilities
+    |> solve
