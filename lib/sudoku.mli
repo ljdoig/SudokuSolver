@@ -5,3 +5,4 @@ val to_string: t -> string
 val read: string -> t option
 val write: t -> string -> unit
 val print: t -> unit
+val solve: t -> unit

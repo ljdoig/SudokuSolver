@@ -1,15 +1,38 @@
 open Core
 
 type t = int option array array
+type possibilities = int list array array
+
+let box_corner_indices = Array.init 9 ~f:(fun i -> i / 3 * 3, i mod 3 * 3)
+
+let box_indices (row, col) =
+  let box_row = row / 3 * 3 and box_col = col / 3 * 3 in
+  Array.init 9 ~f:(fun i -> box_row + i / 3, box_col + i mod 3)
 
 let create (array : int option array array) : t option =
+  if Array.length array <> 9 then None else
+  if Array.exists ~f:(fun row -> Array.length row <> 9) array then None else
   let invalid_cell = function
   | Some x -> not (1 <= x && x <= 9)
   | None -> false
   in
-  match Array.exists ~f:(fun row -> Array.exists ~f:invalid_cell row) array with
-  | true -> None
-  | false -> Some array
+  if Array.exists ~f:(fun row -> Array.exists ~f:invalid_cell row) array then
+    None
+  else
+  let no_duplicate x = x
+    |> Array.filter_map ~f:Fn.id
+    |> Array.sorted_copy ~compare:Int.compare
+    |> Array.find_consecutive_duplicate ~equal:(=)
+    |> is_none
+  in
+  let valid_rows = Array.for_all ~f:no_duplicate array in
+  let valid_cols = Array.for_all ~f:no_duplicate (Array.transpose_exn array) in
+  let valid_boxes = Array.for_all ~f:no_duplicate (
+    box_corner_indices
+      |> Array.map ~f:(fun coords -> box_indices coords)
+      |> Array.map ~f:(Array.map ~f:(fun (r, c) -> array.(r).(c)))
+  ) in
+  if valid_rows && valid_cols && valid_boxes then Some array else None
 
 let to_string (t : t) =
   let s = Buffer.create 256 in
@@ -53,30 +76,17 @@ let write t (filename : string) : unit =
   Out_channel.output_string oc (to_string t);
   Out_channel.close oc
 
-(*
-let potential_assignment sudoku row col num =
-  let same_num x = (x = Some num) in
-  let row_nums = sudoku.(row) in
-  let col_nums = Array.map (fun x -> x.(col)) sudoku in
-  let box_row = row / 3 * 3 and box_col = col / 3 * 3 in
-  let box_rows = Array.sub sudoku box_row 3 in
-  let box = Array.map (fun row -> Array.sub row box_col 3) box_rows in
-  row_nums :: col_nums :: Array.to_list box
-    |> List.for_all (fun nums -> not (Array.exists same_num nums)) *)
-
-type possibilities = int list array array
-
-let box_corner_indices = Array.init 9 ~f:(fun i -> i / 3 * 3, i mod 3 * 3)
-
-let () =
-  Array.to_list box_corner_indices
-    |> List.map ~f:(fun (i, j) -> sprintf "(%d, %d)" i j)
-    |> String.concat ~sep:", "
-    |> print_endline
-
-let box_indices (row, col) =
-  let box_row = row / 3 * 3 and box_col = col / 3 * 3 in
-  Array.init 9 ~f:(fun i -> box_row + i / 3, box_col + i mod 3)
+let of_possibilities (possibilities : possibilities) : t option =
+  let array = Array.make_matrix ~dimx:9 ~dimy:9 None in
+  Array.iteri
+    ~f:(fun i row_possibilities ->
+      Array.iteri
+        ~f:(fun j cell_possibilities ->
+          if List.length cell_possibilities = 1
+          then array.(i).(j) <- Some (List.hd_exn cell_possibilities))
+        row_possibilities)
+    possibilities;
+  create array
 
 let possibilities_to_string possibilities =
   let s = Buffer.create 256 in
@@ -147,12 +157,12 @@ let constrain (possibilities : possibilities) progress : unit =
     done;)
 
 let assign (possibilities : possibilities) progress =
-  for value = 1 to 9 do
-    let contains_value list = List.mem list ~equal:Int.equal value in
-    let trim possibilities_set coords =
-      if Array.count possibilities_set ~f:contains_value = 1 then
+  let trim possibilities_set coords =
+    let mem value list = List.mem list ~equal:Int.equal value in
+    for value = 1 to 9 do
+      if Array.count possibilities_set ~f:(mem value) = 1 then
         Array.iter2_exn possibilities_set coords ~f:(fun cell_poss (row, col) ->
-          if contains_value cell_poss && List.length cell_poss > 1
+          if mem value cell_poss && List.length cell_poss > 1
           then (
             possibilities.(row).(col) <- [value];
             progress := true;
@@ -160,21 +170,21 @@ let assign (possibilities : possibilities) progress =
               "(%d, %d) must be %d, previous possibilities: %s\n"
               row col value (List.to_string cell_poss ~f:Int.to_string)
           ))
-    in
-    for i = 0 to 8 do
-      let row_possibilities = possibilities.(i) in
-      let col_possibilities = Array.map ~f:(fun r -> r.(i)) possibilities in
-      trim row_possibilities (Array.init 9 ~f:(fun c -> (i, c)));
-      trim col_possibilities (Array.init 9 ~f:(fun r -> (r, i)));
-      let current_box_indices = box_indices box_corner_indices.(i) in
-      let box_possibilities =
-        Array.map ~f:(fun (r, c) -> possibilities.(r).(c)) current_box_indices
-      in
-      trim box_possibilities current_box_indices
       done
-  done
+  in
+  for i = 0 to 8 do
+    let row_possibilities = possibilities.(i) in
+    let col_possibilities = Array.map ~f:(fun r -> r.(i)) possibilities in
+    trim row_possibilities (Array.init 9 ~f:(fun c -> (i, c)));
+    trim col_possibilities (Array.init 9 ~f:(fun r -> (r, i)));
+    let current_box_indices = box_indices box_corner_indices.(i) in
+    let box_possibilities =
+      Array.map ~f:(fun (r, c) -> possibilities.(r).(c)) current_box_indices
+    in
+    trim box_possibilities current_box_indices
+    done
 
-let solve possibilities : unit =
+let solve_internal possibilities : possibilities =
   let constrain_progress = ref true in
   let assign_progress = ref true in
   while !constrain_progress || !assign_progress do
@@ -190,9 +200,21 @@ let solve possibilities : unit =
       possibilities
         |> possibilities_to_string
         |> print_endline;
-  done
+  done;
+  possibilities
 
-let print t =
-  t |> to_string |> print_endline;
+let print t = t |> to_string |> print_endline
+
+let solve t =
   t |> initial_possibilities
-    |> solve
+    |> solve_internal
+    |> of_possibilities
+    |> function
+    | None -> print_endline "Invalid solution"
+    | Some solved ->
+      print_endline "Before: ";
+      t |> to_string |> print_endline;
+      print_endline "After: ";
+      solved |> to_string |> print_endline;
+      if Array.for_all ~f:(Array.for_all ~f:(Option.is_some)) solved
+      then Printf.printf "Complete sudoku!\n";
