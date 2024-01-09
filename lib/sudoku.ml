@@ -81,6 +81,15 @@ let write t (filename : string) : unit =
   Out_channel.close oc
 
 let of_possibilities (possibilities : possibilities) : t option =
+  let nums = Array.init 9 ~f:(fun i -> i + 1) in
+  if Array.for_all nums ~f:(fun n ->
+    let n_still_possible =
+      Array.exists ~f:(fun cell_poss -> List.mem cell_poss ~equal:Int.equal n)
+    in
+    Array.for_all ~f:n_still_possible possibilities &&
+    Array.for_all ~f:n_still_possible (cols possibilities) &&
+    Array.for_all ~f:n_still_possible (boxes possibilities)) |> not
+  then None else
   let array = Array.make_matrix ~dimx:9 ~dimy:9 None in
   Array.iteri
     ~f:(fun i row_possibilities ->
