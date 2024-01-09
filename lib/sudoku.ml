@@ -9,6 +9,14 @@ let box_indices (row, col) =
   let box_row = row / 3 * 3 and box_col = col / 3 * 3 in
   Array.init 9 ~f:(fun i -> box_row + i / 3, box_col + i mod 3)
 
+let boxes_indices = Array.map ~f:box_indices box_corner_indices
+
+let boxes array = box_corner_indices
+  |> Array.map ~f:(fun coords -> box_indices coords)
+  |> Array.map ~f:(Array.map ~f:(fun (r, c) -> array.(r).(c)))
+
+let cols array = Array.transpose_exn array
+
 let create (array : int option array array) : t option =
   if Array.length array <> 9 then None else
   if Array.exists ~f:(fun row -> Array.length row <> 9) array then None else
@@ -26,12 +34,8 @@ let create (array : int option array array) : t option =
     |> is_none
   in
   let valid_rows = Array.for_all ~f:no_duplicate array in
-  let valid_cols = Array.for_all ~f:no_duplicate (Array.transpose_exn array) in
-  let valid_boxes = Array.for_all ~f:no_duplicate (
-    box_corner_indices
-      |> Array.map ~f:(fun coords -> box_indices coords)
-      |> Array.map ~f:(Array.map ~f:(fun (r, c) -> array.(r).(c)))
-  ) in
+  let valid_cols = Array.for_all ~f:no_duplicate (cols array) in
+  let valid_boxes = Array.for_all ~f:no_duplicate (boxes array) in
   if valid_rows && valid_cols && valid_boxes then Some array else None
 
 let to_string (t : t) =
@@ -155,7 +159,6 @@ let constrain (possibilities : possibilities) progress : unit =
       | _ -> ()
       done;
     done;)
-
 let assign (possibilities : possibilities) progress =
   let trim possibilities_set coords =
     let mem value list = List.mem list ~equal:Int.equal value in
@@ -172,16 +175,13 @@ let assign (possibilities : possibilities) progress =
           ))
       done
   in
+  let boxes_possibilities = boxes possibilities in
   for i = 0 to 8 do
     let row_possibilities = possibilities.(i) in
     let col_possibilities = Array.map ~f:(fun r -> r.(i)) possibilities in
     trim row_possibilities (Array.init 9 ~f:(fun c -> (i, c)));
     trim col_possibilities (Array.init 9 ~f:(fun r -> (r, i)));
-    let current_box_indices = box_indices box_corner_indices.(i) in
-    let box_possibilities =
-      Array.map ~f:(fun (r, c) -> possibilities.(r).(c)) current_box_indices
-    in
-    trim box_possibilities current_box_indices
+    trim boxes_possibilities.(i) boxes_indices.(i)
     done
 
 let solve_internal possibilities : possibilities =
