@@ -81,24 +81,23 @@ let write t (filename : string) : unit =
   Out_channel.close oc
 
 let of_possibilities (possibilities : possibilities) : t option =
+  if Array.exists possibilities ~f:(Array.exists ~f:List.is_empty) then None
+  else
   let nums = Array.init 9 ~f:(fun i -> i + 1) in
-  if Array.for_all nums ~f:(fun n ->
-    let n_still_possible =
-      Array.exists ~f:(fun cell_poss -> List.mem cell_poss ~equal:Int.equal n)
-    in
-    Array.for_all ~f:n_still_possible possibilities &&
-    Array.for_all ~f:n_still_possible (cols possibilities) &&
-    Array.for_all ~f:n_still_possible (boxes possibilities)) |> not
-  then None else
+  if Array.exists nums ~f:(fun n ->
+    let n_not_possible = Array.for_all ~f:(
+      fun cell_poss -> List.mem cell_poss ~equal:Int.equal n |> not
+    ) in
+    Array.exists ~f:n_not_possible possibilities &&
+    Array.exists ~f:n_not_possible (cols possibilities) &&
+    Array.exists ~f:n_not_possible (boxes possibilities)
+  ) then None else
   let array = Array.make_matrix ~dimx:9 ~dimy:9 None in
-  Array.iteri
-    ~f:(fun i row_possibilities ->
-      Array.iteri
-        ~f:(fun j cell_possibilities ->
-          if List.length cell_possibilities = 1
-          then array.(i).(j) <- Some (List.hd_exn cell_possibilities))
-        row_possibilities)
-    possibilities;
+  Array.iteri possibilities ~f:(fun i row_possibilities ->
+    Array.iteri row_possibilities ~f:(fun j cell_possibilities ->
+      match cell_possibilities with
+      | [only_possibility] -> array.(i).(j) <- Some only_possibility
+      | _ -> ()));
   create array
 
 let possibilities_to_string possibilities =
@@ -219,11 +218,12 @@ let solve t =
     |> solve_internal
     |> of_possibilities
     |> function
-    | None -> print_endline "Invalid solution"
+    | None -> print_endline "Sudoku specification produced invalid output"; None
     | Some solved ->
       print_endline "Before: ";
       t |> to_string |> print_endline;
       print_endline "After: ";
       solved |> to_string |> print_endline;
-      if Array.for_all ~f:(Array.for_all ~f:(Option.is_some)) solved
+      if Array.for_all ~f:(Array.for_all ~f:Option.is_some) solved
       then Printf.printf "Complete sudoku!\n";
+      Some solved

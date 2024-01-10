@@ -1,2 +1,3 @@
 (test
- (name sudoku))
+ (name sudoku)
+ (libraries sudoku ounit2))
