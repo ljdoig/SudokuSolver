@@ -60,14 +60,15 @@ let initial_possibilities (sudoku : t) : possibilities =
   in
   Array.map ~f:(Array.map ~f:possibilites_from_spec) sudoku
 
-let constrain (possibilities : possibilities) progress : unit =
+let constrain ~verbose (possibilities : possibilities) progress : unit =
   let remove_possibility row col value =
     if List.mem possibilities.(row).(col) ~equal:Int.equal value then (
       possibilities.(row).(col) <- List.filter possibilities.(row).(col) ~f:(
         fun x -> x <> value
       );
-      Printf.printf "(%d, %d) can't be %d\n" row col value;
-      progress := true
+      progress := true;
+      if verbose then
+        Printf.printf "(%d, %d) can't be %d\n" row col value
     )
   in
   let constrain_row_and_col row col value =
@@ -92,7 +93,8 @@ let constrain (possibilities : possibilities) progress : unit =
       | _ -> ()
       done;
     done;)
-let assign (possibilities : possibilities) progress =
+
+let assign ~verbose (possibilities : possibilities) progress =
   let trim possibilities_set coords =
     let mem value list = List.mem list ~equal:Int.equal value in
     for value = 1 to 9 do
@@ -102,9 +104,10 @@ let assign (possibilities : possibilities) progress =
           then (
             possibilities.(row).(col) <- [value];
             progress := true;
-            Printf.printf
-              "(%d, %d) must be %d, previous possibilities: %s\n"
-              row col value (List.to_string cell_poss ~f:Int.to_string)
+            if verbose then
+              Printf.printf
+                "(%d, %d) must be %d, previous possibilities: %s\n"
+                row col value (List.to_string cell_poss ~f:Int.to_string)
           ))
       done
   in
@@ -117,19 +120,19 @@ let assign (possibilities : possibilities) progress =
     trim boxes_possibilities.(i) boxes_indices.(i)
     done
 
-let solve_internal possibilities : possibilities =
+let solve_internal ~verbose possibilities : possibilities =
   let constrain_progress = ref true in
   let assign_progress = ref true in
   while !constrain_progress || !assign_progress do
     constrain_progress := false;
-    constrain possibilities constrain_progress;
-    if !constrain_progress then
+    constrain ~verbose possibilities constrain_progress;
+    if !constrain_progress && verbose then
       possibilities
         |> possibilities_to_string
         |> print_endline;
     assign_progress := false;
-    assign possibilities assign_progress;
-    if !assign_progress then
+    assign ~verbose possibilities assign_progress;
+    if !assign_progress && verbose then
       possibilities
         |> possibilities_to_string
         |> print_endline;
@@ -138,17 +141,20 @@ let solve_internal possibilities : possibilities =
 
 let print t = t |> to_string |> print_endline
 
-let solve t =
+let solve ?(verbose=false) t =
   t |> initial_possibilities
-    |> solve_internal
+    |> solve_internal ~verbose
     |> of_possibilities
-    |> function
-    | None -> print_endline "Sudoku specification produced invalid output"; None
-    | Some solved ->
-      print_endline "Before: ";
-      t |> to_string |> print_endline;
-      print_endline "After: ";
-      solved |> to_string |> print_endline;
-      if Array.for_all ~f:(Array.for_all ~f:Option.is_some) solved
-      then Printf.printf "Complete sudoku!\n";
-      Some solved
+    |> (fun sudoku -> if verbose then (
+          match sudoku with
+          | None -> print_endline "Sudoku specification produced invalid output"
+          | Some solved ->
+              begin
+                print_endline "Before: ";
+                t |> to_string |> print_endline;
+                print_endline "After: ";
+                solved |> to_string |> print_endline;
+                if Array.for_all ~f:(Array.for_all ~f:Option.is_some) solved
+                then Printf.printf "Complete sudoku!\n";
+              end);
+        sudoku)

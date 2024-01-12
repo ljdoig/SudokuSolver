@@ -2,7 +2,7 @@ open Core
 
 let solve_sudoku filename =
   match Sudoku.read filename with
-  | Some sudoku -> Sudoku.solve sudoku |> ignore
+  | Some sudoku -> Sudoku.solve ~verbose:true sudoku |> ignore
   | None -> print_endline "illegal sudoku"
 
 let command =
