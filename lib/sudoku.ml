@@ -60,6 +60,55 @@ let initial_possibilities (sudoku : t) : possibilities =
   in
   Array.map ~f:(Array.map ~f:possibilites_from_spec) sudoku
 
+let constrain_advanced possibilities remove_possibility =
+  (* assumes that the two poss_coords sets contain the same values*)
+  let remove_impossible poss_coords1 poss_coords2 =
+    for value = 1 to 9 do
+      Array.iter poss_coords1 ~f:(fun (_, (r, c)) ->
+        (* if value is impossible in coords2, then it's impossible in coords1 *)
+        if not (Array.exists poss_coords2 ~f:(fun (cell_poss2, _) ->
+          List.mem cell_poss2 ~equal:Int.equal value
+        ))
+        then remove_possibility r c value
+      )
+    done
+  in
+  (* an overlapping box and row/col must have the same values in non-overlap *)
+  let constrain_overlapping poss1 coords1 poss2 coords2 = (
+    (* find entries in poss_coords1 that are not in poss_coords2 *)
+    let diff poss_coords1 poss_coords2 = Array.filter poss_coords1 ~f:(
+      fun entry -> not (Array.mem poss_coords2 entry ~equal:(
+          fun (_ , (r1, c1)) (_, (r2, c2)) -> r1 = r2 && c1 = c2
+      ))
+    )
+    in
+    let poss_coords1 = Array.zip_exn poss1 coords1
+    and poss_coords2 = Array.zip_exn poss2 coords2 in
+    let diff1 = diff poss_coords1 poss_coords2
+    and diff2 = diff poss_coords2 poss_coords1 in
+    remove_impossible diff1 diff2;
+    remove_impossible diff2 diff1
+  )
+  in
+  (* constrain each possible box * row pair and each box * col pair as above *)
+  Array.iter2_exn (boxes possibilities) boxes_indices ~f:(
+    fun box_poss box_coords ->
+      let rows_present, cols_present = rows_cols_present box_coords in
+      List.iter rows_present ~f:(fun row ->
+        let row_poss = possibilities.(row) in
+        let row_coords = Array.init 9 ~f:(fun i -> row, i) in
+        constrain_overlapping box_poss box_coords row_poss row_coords;
+        constrain_overlapping row_poss row_coords box_poss box_coords
+      );
+      let cols_possibilities = cols possibilities in
+      List.iter cols_present ~f:(fun col ->
+        let col_poss = cols_possibilities.(col) in
+        let col_coords = Array.init 9 ~f:(fun i -> i, col) in
+        constrain_overlapping box_poss box_coords col_poss col_coords;
+        constrain_overlapping col_poss col_coords box_poss box_coords
+      )
+  )
+
 let constrain ~verbose (possibilities : possibilities) progress : unit =
   let remove_possibility row col value =
     if List.mem possibilities.(row).(col) ~equal:Int.equal value then (
@@ -77,7 +126,7 @@ let constrain ~verbose (possibilities : possibilities) progress : unit =
         remove_possibility row i value;
       if i <> row then
         remove_possibility i col value;
-      done;
+    done;
   and constrain_box row col value =
     Array.iter (box_indices (row, col)) ~f:(fun (row', col') ->
       if row' <> row || col' <> col then
@@ -91,8 +140,9 @@ let constrain ~verbose (possibilities : possibilities) progress : unit =
         constrain_row_and_col row col value;
         constrain_box row col value;
       | _ -> ()
-      done;
-    done;)
+    done;
+  done;);
+  if not !progress then constrain_advanced possibilities remove_possibility
 
 let assign ~verbose (possibilities : possibilities) progress =
   let trim possibilities_set coords =
@@ -109,7 +159,7 @@ let assign ~verbose (possibilities : possibilities) progress =
                 "(%d, %d) must be %d, previous possibilities: %s\n"
                 row col value (List.to_string cell_poss ~f:Int.to_string)
           ))
-      done
+    done
   in
   let boxes_possibilities = boxes possibilities in
   for i = 0 to 8 do
@@ -118,7 +168,7 @@ let assign ~verbose (possibilities : possibilities) progress =
     trim row_possibilities (Array.init 9 ~f:(fun c -> (i, c)));
     trim col_possibilities (Array.init 9 ~f:(fun r -> (r, i)));
     trim boxes_possibilities.(i) boxes_indices.(i)
-    done
+  done
 
 let solve_internal ~verbose possibilities : possibilities =
   let constrain_progress = ref true in

@@ -12,9 +12,17 @@ let box_indices (row, col) =
 
 let boxes_indices = Array.map ~f:box_indices box_corner_indices
 
-let boxes array = box_corner_indices
-  |> Array.map ~f:(fun coords -> box_indices coords)
-  |> Array.map ~f:(Array.map ~f:(fun (r, c) -> array.(r).(c)))
+let boxes array =
+  Array.map ~f:(Array.map ~f:(fun (r, c) -> array.(r).(c))) boxes_indices
+
+let rows_cols_present coords =
+  let rows = Array.map coords ~f:fst
+  and cols = Array.map coords ~f:snd in
+  let uniques array = array
+    |> Array.to_list
+    |> List.dedup_and_sort ~compare:Int.compare
+  in
+  uniques rows, uniques cols
 
 let cols array = Array.transpose_exn array
 
