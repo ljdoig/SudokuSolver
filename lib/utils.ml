@@ -24,6 +24,16 @@ let rows_cols_present coords =
   in
   uniques rows, uniques cols
 
+let row_poss_coords possibilities row =
+  let row_poss = possibilities.(row) in
+  let row_coords = Array.init 9 ~f:(fun i -> row, i) in
+  row_poss, row_coords
+
+let col_poss_coords cols_possibilities col =
+  let col_poss = cols_possibilities.(col) in
+  let col_coords = Array.init 9 ~f:(fun i -> i, col) in
+  col_poss, col_coords
+
 let cols array = Array.transpose_exn array
 
 let create (array : int option array array) : t option =
