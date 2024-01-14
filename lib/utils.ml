@@ -1,7 +1,6 @@
 open Core
 
 (* functions to process sudokus from text files and helper functions *)
-
 type t = int option array array
 
 let box_corner_indices = Array.init 9 ~f:(fun i -> i / 3 * 3, i mod 3 * 3)
@@ -23,16 +22,6 @@ let rows_cols_present coords =
     |> List.dedup_and_sort ~compare:Int.compare
   in
   uniques rows, uniques cols
-
-let row_poss_coords possibilities row =
-  let row_poss = possibilities.(row) in
-  let row_coords = Array.init 9 ~f:(fun i -> row, i) in
-  row_poss, row_coords
-
-let col_poss_coords cols_possibilities col =
-  let col_poss = cols_possibilities.(col) in
-  let col_coords = Array.init 9 ~f:(fun i -> i, col) in
-  col_poss, col_coords
 
 let cols array = Array.transpose_exn array
 
@@ -103,3 +92,81 @@ let write t (filename : string) : unit =
   let oc = Out_channel.create filename in
   Out_channel.output_string oc (to_string t);
   Out_channel.close oc
+
+(* data structure used for solving the sudoku: a 2D array with a list of
+   possible values for each cell *)
+type possibilities = int list array array
+
+let initial_possibilities (sudoku : t) : possibilities =
+  let possibilites_from_spec = (function
+    | None -> List.init 9 ~f:(fun x -> x + 1)
+    | Some x -> [x])
+  in
+  Array.map ~f:(Array.map ~f:possibilites_from_spec) sudoku
+
+let row_poss_coords possibilities row : int list array * (int * int) array =
+  let row_poss = possibilities.(row) in
+  let row_coords = Array.init 9 ~f:(fun i -> row, i) in
+  row_poss, row_coords
+
+let col_poss_coords cols_possibilities col : int list array * (int * int) array =
+  let col_poss = cols_possibilities.(col) in
+  let col_coords = Array.init 9 ~f:(fun i -> i, col) in
+  col_poss, col_coords
+
+let of_possibilities (possibilities : possibilities) : t option =
+  if Array.exists possibilities ~f:(Array.exists ~f:List.is_empty) then None
+  else
+  let nums = Array.init 9 ~f:(fun i -> i + 1) in
+  if Array.exists nums ~f:(fun n ->
+    let n_not_possible = Array.for_all ~f:(
+      fun cell_poss -> List.mem cell_poss ~equal:Int.equal n |> not
+    ) in
+    Array.exists ~f:n_not_possible possibilities &&
+    Array.exists ~f:n_not_possible (cols possibilities) &&
+    Array.exists ~f:n_not_possible (boxes possibilities)
+  ) then None else
+  let array = Array.make_matrix ~dimx:9 ~dimy:9 None in
+  Array.iteri possibilities ~f:(fun i row_possibilities ->
+    Array.iteri row_possibilities ~f:(fun j cell_possibilities ->
+      match cell_possibilities with
+      | [only_possibility] -> array.(i).(j) <- Some only_possibility
+      | _ -> ()));
+  create array
+
+let possibilities_to_string possibilities =
+  let s = Buffer.create 256 in
+  Buffer.add_string s "      ";
+  for i = 0 to 8 do
+    Buffer.add_string s (Int.to_string i);
+    Buffer.add_string s "         "
+  done;
+  Buffer.add_char s '\n';
+  let print_horizontal_divider buffer =
+    Buffer.add_char buffer ' ';
+    for _ = 0 to 2 do
+      Buffer.add_char buffer '+';
+      Buffer.add_string buffer (String.make (9 * 3 + 2) '-');
+    done;
+    Buffer.add_string buffer "+\n";
+  in
+  Array.iteri
+    ~f:(fun i row_possibilities ->
+      if i mod 3 = 0 then print_horizontal_divider s;
+      Buffer.add_string s (Int.to_string i);
+      Array.iteri
+        ~f:(fun j cell_possibilities ->
+          Buffer.add_string s (if j mod 3 = 0 then "|" else " ");
+          let possible = Array.init 9 ~f:(Fn.const ".") in
+          List.iter cell_possibilities ~f:(
+            fun n -> possible.(n - 1) <- Int.to_string n
+          );
+          possible
+            |> String.concat_array ~sep:""
+            |> Buffer.add_string s;
+        )
+        row_possibilities;
+      Buffer.add_string s "|\n")
+    possibilities;
+  print_horizontal_divider s;
+  Buffer.contents s
