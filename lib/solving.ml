@@ -49,11 +49,6 @@ let constrain_advanced possibilities remove_possibility verbose =
         constrain_overlapping col_poss col_coords box_poss box_coords
       )
   );
-  (* TODO: the 16 tiles found from the 2x2 boxes in each corner of the sudoku must
-     match the 16 tiles that border the centre box, explained here:
-     https://www.youtube.com/watch?v=pezlnN4X52g
-  *)
-
   (* in any box/row/col if n cells have only n distinct possibilities between
      them then the remainin 9 - n cells can't contain any such values *)
   let check_n_distinct_in_n_cells poss coords =

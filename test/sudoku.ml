@@ -23,5 +23,6 @@ let suite =
   ]
 
 let () =
+  (* If you're reading this, yes it's hacky and lazy and I'm sorry *)
   Sys.chdir "../../../test/test_cases";
   run_test_tt_main suite
