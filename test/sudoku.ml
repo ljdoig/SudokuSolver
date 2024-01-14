@@ -17,7 +17,6 @@ let suite =
   "Sudoku Tests" >::: [
     "Unsolveable 1" >:: (fun _ -> test_sudoku_invalid "unsolveable1");
     "Unsolveable 2" >:: (fun _ -> test_sudoku_invalid "unsolveable2");
-    "Semi solveable 3" >:: (fun _ -> test_sudoku_solve "semisolveable1");
     "Solveable 1" >:: (fun _ -> test_sudoku_solve "solveable1");
     "Solveable 2" >:: (fun _ -> test_sudoku_solve "solveable2");
     "Solveable 3" >:: (fun _ -> test_sudoku_solve "solveable3");

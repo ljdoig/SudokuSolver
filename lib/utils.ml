@@ -170,3 +170,11 @@ let possibilities_to_string possibilities =
     possibilities;
   print_horizontal_divider s;
   Buffer.contents s
+
+let solved possibilities = Array.for_all possibilities ~f:(Array.for_all ~f:(
+ function
+ | [_] -> true
+ | _   -> false
+))
+
+let unsolveable = Fn.compose is_none of_possibilities

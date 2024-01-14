@@ -181,10 +181,13 @@ let assign ~verbose (possibilities : possibilities) progress =
     trim boxes_possibilities.(i) boxes_indices.(i)
   done
 
-let solve_internal ~verbose possibilities : possibilities =
+open Option.Monad_infix
+
+let rec solve_internal ~verbose possibilities : possibilities option =
   let constrain_progress = ref true in
   let assign_progress = ref true in
-  while !constrain_progress || !assign_progress do
+  while (!constrain_progress || !assign_progress) && not (solved possibilities)
+  do
     constrain_progress := false;
     constrain ~verbose possibilities constrain_progress;
     if !constrain_progress && verbose then
@@ -198,18 +201,43 @@ let solve_internal ~verbose possibilities : possibilities =
         |> possibilities_to_string
         |> print_endline;
   done;
-  possibilities
+  if solved possibilities then
+    Some possibilities
+  else if unsolveable possibilities then
+    None
+  else
+    (* check for multiple possible assignments, then try them all *)
+    let possible_idea = Array.find_mapi possibilities ~f:(
+      fun r row_poss -> Array.find_mapi row_poss ~f:(
+        fun c cell_poss ->
+          if List.length cell_poss > 1 then
+            Some (cell_poss, (r, c))
+          else
+            None
+      )
+    )
+    in
+    possible_idea >>= fun (cell_poss, (r, c)) ->
+      List.find_map cell_poss ~f:(fun value ->
+        if verbose then
+          Printf.printf "Trying value %d in (%d, %d)\n" value r c;
+        let new_possibilities = Array.map possibilities ~f:Array.copy in
+        new_possibilities.(r).(c) <- [value];
+        solve_internal ~verbose new_possibilities
+      )
 
 let print t = t |> to_string |> print_endline
 
 let solve ?(verbose=false) t =
   t |> initial_possibilities
     |> solve_internal ~verbose
-    |> of_possibilities
-    |> (fun sudoku -> if verbose then (
-          match sudoku with
-          | None -> print_endline "Sudoku specification produced invalid output"
-          | Some solved ->
+    |> fun possibilities ->
+      if is_none possibilities && verbose then
+        print_endline "Sudoku specification produced invalid output";
+      possibilities
+      >>= of_possibilities
+      >>| fun solved ->
+            if verbose then
               begin
                 print_endline "Before: ";
                 t |> to_string |> print_endline;
@@ -217,5 +245,5 @@ let solve ?(verbose=false) t =
                 solved |> to_string |> print_endline;
                 if Array.for_all ~f:(Array.for_all ~f:Option.is_some) solved
                 then print_endline "Complete sudoku!";
-              end);
-        sudoku)
+              end;
+            solved
