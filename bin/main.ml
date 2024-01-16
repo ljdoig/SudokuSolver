@@ -1,22 +1,21 @@
 open Core
 
 let solve_sudoku filename ~verbose =
-  match Sudoku.read filename with
-  | None -> print_endline "illegal sudoku"
-  | Some sudoku ->
-    if verbose then
-      Sudoku.solve ~verbose sudoku |> ignore
-    else
-      begin
-        let start_time = Time.now () in
-        let solved = Sudoku.solve ~verbose sudoku in
-        let end_time = Time.now () in
-        Time.diff end_time start_time
-          |> Time.Span.to_sec
-          |> Printf.printf "Solving took: %f seconds\n";
-        let open Option.Monad_infix in
-        solved >>| Sudoku.print |> ignore
-      end
+  let open Option.Monad_infix in
+  Sudoku.read filename
+  >>= (fun sudoku ->
+      let start_time = Time.now () in
+      let output = Sudoku.solve ~verbose sudoku in
+      let end_time = Time.now () in
+      output >>| (fun solved ->
+        let runtime = Time.diff end_time start_time |> Time.Span.to_sec in
+        (solved, runtime)
+      ))
+  |> function
+    | None -> print_endline "Illegal sudoku"
+    | Some (solved, runtime) ->
+        Sudoku.print solved;
+        print_endline ("Solving took: " ^ string_of_float runtime)
 
 let command =
   Command.basic

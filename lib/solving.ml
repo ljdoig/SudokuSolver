@@ -181,8 +181,8 @@ open Option.Monad_infix
 let rec solve_internal ~verbose possibilities : possibilities option =
   let constrain_progress = ref true in
   let assign_progress = ref true in
-  while (!constrain_progress || !assign_progress) && not (solved possibilities)
-  do
+  let continue () = not (solved possibilities || unsolveable possibilities) in
+  while (!constrain_progress || !assign_progress) && continue () do
     constrain_progress := false;
     constrain ~verbose possibilities constrain_progress;
     if !constrain_progress && verbose then
@@ -226,17 +226,4 @@ let print t = t |> to_string |> print_string
 let solve ?(verbose=false) t =
   t |> initial_possibilities
     |> solve_internal ~verbose
-    |> fun possibilities ->
-      if is_none possibilities && verbose then
-        print_endline "Sudoku specification produced invalid output";
-      possibilities
-      >>= of_possibilities
-      >>| fun solved ->
-            if verbose then
-              begin
-                print_endline "Before: "; print t;
-                print_endline "After: "; print solved;
-                if Array.for_all ~f:(Array.for_all ~f:Option.is_some) solved
-                then print_endline "Complete sudoku!";
-              end;
-            solved
+    >>= of_possibilities
