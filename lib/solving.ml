@@ -221,7 +221,7 @@ let rec solve_internal ~verbose possibilities : possibilities option =
         solve_internal ~verbose new_possibilities
       )
 
-let print t = t |> to_string |> print_endline
+let print t = t |> to_string |> print_string
 
 let solve ?(verbose=false) t =
   t |> initial_possibilities
@@ -234,10 +234,8 @@ let solve ?(verbose=false) t =
       >>| fun solved ->
             if verbose then
               begin
-                print_endline "Before: ";
-                t |> to_string |> print_endline;
-                print_endline "After: ";
-                solved |> to_string |> print_endline;
+                print_endline "Before: "; print t;
+                print_endline "After: "; print solved;
                 if Array.for_all ~f:(Array.for_all ~f:Option.is_some) solved
                 then print_endline "Complete sudoku!";
               end;

@@ -1,4 +1,4 @@
-# SudokuSolver 
+# SudokuSolver
 
 
 This OCaml project aims to solve Sudokus with mostly logic and occasional guesswork, with the following steps:
@@ -29,9 +29,6 @@ this requires finding the powerset of the $9$ cells which contains $2^9 = 512$ e
 This was all I could come up with from my limited Sudoku knowledge but it turns out there are [even more techniques](https://www.learn-sudoku.com/advanced-techniques.html).
 However, these techinques give only marginal gains, removing one or two possibilities at a time.
 After applying the above logic the possibilities are trimmed down sufficiently that a tree search is very feasible.
-At most a single guess is required to solve the [Master puzzles](https://sudoku.com/evil/) on [sudoku.com](sudoku.com). 
+At most a single guess is required to solve the [Master puzzles](https://sudoku.com/evil/) on [sudoku.com](sudoku.com).
 Even the supposed [hardest Sudoku ever](https://abcnews.go.com/blogs/headlines/2012/06/can-you-solve-the-hardest-ever-sudoku)
-is solved in only 0.1 seconds with 14 guesses.
-
-
-
+is solved in only 0.06 seconds with 14 guesses.
