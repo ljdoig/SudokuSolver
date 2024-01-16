@@ -8,14 +8,18 @@ let solve_sudoku filename ~verbose =
       let output = Sudoku.solve ~verbose sudoku in
       let end_time = Time.now () in
       output >>| (fun solved ->
-        let runtime = Time.diff end_time start_time |> Time.Span.to_sec in
-        (solved, runtime)
+        let runtime_ms =
+          Time.diff end_time start_time
+          |> Time.Span.to_ms
+          |> Float.to_int
+        in
+        (solved, runtime_ms)
       ))
   |> function
     | None -> print_endline "Illegal sudoku"
-    | Some (solved, runtime) ->
+    | Some (solved, runtime_ms) ->
         Sudoku.print solved;
-        print_endline ("Solving took: " ^ string_of_float runtime)
+        Printf.printf "Solved in %dms\n" runtime_ms
 
 let command =
   Command.basic
